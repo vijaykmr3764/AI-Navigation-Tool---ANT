@@ -1,0 +1,5 @@
+
+bash
+
+cd /Users\vijay\Desktop\ANT
+git init

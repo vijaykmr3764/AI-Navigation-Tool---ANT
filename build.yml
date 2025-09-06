@@ -1,0 +1,67 @@
+name: Build & Sign ANT APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.0"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANT_KEYSTORE_BASE64 }}" | base64 --decode > android/app/ant-key.jks
+
+      - name: Create key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.ANT_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANT_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANT_KEY_ALIAS }}
+          storeFile=ant-key.jks
+          EOF
+
+      - name: Build signed release APK
+        run: flutter build apk --release
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ant-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v3
+        with:
+          name: ant-apk
+          path: .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "ANT App v${{ github.run_number }}"
+          draft: false
+          prerelease: false
+          files: app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
